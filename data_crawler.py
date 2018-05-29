@@ -73,6 +73,8 @@ class InstanceCrawler(object):
             return
 
         content = list(map(filter_toot, content))
+
+        # TODO: Filter out all toots that are too old and don't set the flag correctly if we have all toots from start time
         self.crawled_up_to_date = datetime.datetime.now(tz=TIME_ZONE)
         if len(content) == 0:
             print("ZEROLENGTH\t Crawl from instance %s returned zero-length array."%self.instance_address)
@@ -94,6 +96,7 @@ class InstanceCrawler(object):
         else:
             r = requests.get("http://"+self.instance_address+"/api/v1/timelines/public", {'local': True, 'limit': 40})
 
+        # TODO: catch connection errors (also in forward)
         if not r.status_code == requests.codes.ok:
             print("ERROR Instance %s returned bad status code."%self.instance_address)
             self.instance_active = False
@@ -105,6 +108,7 @@ class InstanceCrawler(object):
             print("JSON_ERROR\t Instance: %s "%self.instance_address)
             return
 
+        # TODO: Language flag not found in some instances, plz fix...
         content = list(map(filter_toot, content))
         self.crawled_up_to_date = datetime.datetime.now(tz=TIME_ZONE)
 
