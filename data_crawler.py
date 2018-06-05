@@ -57,10 +57,14 @@ class InstanceCrawler(object):
 
     def crawl_forwards(self):
         print("FORWARD_CRAWL_START\t Starting forward crawl on %s."%self.instance_address)
-        if self.crawled_up_to_id is not None:
-            r = requests.get("http://"+self.instance_address+"/api/v1/timelines/public", {'local': True, 'since_id': self.crawled_up_to_id, 'limit': 40})
-        else:
-            r = requests.get("http://"+self.instance_address+"/api/v1/timelines/public", {'local': True, 'limit': 40})
+        try:
+            if self.crawled_up_to_id is not None:
+                r = requests.get("http://"+self.instance_address+"/api/v1/timelines/public", {'local': True, 'since_id': self.crawled_up_to_id, 'limit': 40})
+            else:
+                r = requests.get("http://"+self.instance_address+"/api/v1/timelines/public", {'local': True, 'limit': 40})
+        except requests.exceptions.ConnectionError:
+            print("CONNECT_ERROR Instance %s is down."%self.instance_address)
+            return
         try:
             content = json.loads(r.text)
         except json.JSONDecodeError as e:
@@ -80,6 +84,25 @@ class InstanceCrawler(object):
             print("ZEROLENGTH\t Crawl from instance %s returned zero-length array."%self.instance_address)
             return
 
+        i = 0
+        date = dateutil.parser.parse(content[i]["created_at"])
+        while date is None or date > self.start_time:
+            i += 1
+            if i == len(content):
+                break
+            date = dateutil.parser.parse(content[i]["created_at"])
+
+        self.crawled_all_preceding = len(content) != i
+        if i != 0:
+            content = content[:i]
+            if self.crawled_from_id is None:
+                self.crawled_from_id = content[i-1]["id"]
+        else:
+            content = []
+        if len(content) == 0:
+            print("ZEROLENGTH_TIME\t Crawl from instance %s returned zero-length array after time filtering."%self.instance_address)
+            return
+
         if self.crawled_from_id is None:
             self.crawled_from_id = content[-1]["id"]
         self.crawled_up_to_id = content[0]["id"]
@@ -91,12 +114,15 @@ class InstanceCrawler(object):
 
     def crawl_backwards(self):
         print("BACKWARD_CRAWL_START\t Starting backward crawl on %s."%self.instance_address)
-        if self.crawled_from_id is not None:
-            r = requests.get("http://"+self.instance_address+"/api/v1/timelines/public", {'local': True, 'max_id': self.crawled_from_id, 'limit': 40})
-        else:
-            r = requests.get("http://"+self.instance_address+"/api/v1/timelines/public", {'local': True, 'limit': 40})
+        try:
+            if self.crawled_from_id is not None:
+                r = requests.get("http://"+self.instance_address+"/api/v1/timelines/public", {'local': True, 'max_id': self.crawled_from_id, 'limit': 40})
+            else:
+                r = requests.get("http://"+self.instance_address+"/api/v1/timelines/public", {'local': True, 'limit': 40})
+        except requests.exceptions.ConnectionError:
+            print("CONNECT_ERROR Instance %s is down."%self.instance_address)
+            return
 
-        # TODO: catch connection errors (also in forward)
         if not r.status_code == requests.codes.ok:
             print("ERROR Instance %s returned bad status code."%self.instance_address)
             self.instance_active = False

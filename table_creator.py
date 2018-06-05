@@ -9,6 +9,7 @@ print("Resetting database")
 db = sqlite3.connect("data/toots.db")
 
 db.execute("DROP TABLE IF EXISTS raw_toots")
+db.execute("DROP TABLE IF EXISTS terms")
 
 db.execute(
     """
@@ -24,3 +25,13 @@ CREATE TABLE raw_toots (
 
 )"""
 )
+
+db.execute(
+    """
+CREATE TABLE terms (
+  created_at DATETIME,
+  term TEXT
+
+)"""
+)
+

@@ -14,8 +14,8 @@ class TfIdf:
     def __getDbTerms(self, conn, datetime_from, datetime_to):
         conn.row_factory = lambda cursor, row: row[0]
         c = conn.cursor()
-
-        return c.execute(f"SELECT term FROM terms WHERE created_at BETWEEN '{datetime_from}' AND '{datetime_to}'").fetchall()
+        ret = c.execute("SELECT term FROM terms WHERE created_at BETWEEN ? AND ?", (datetime_from, datetime_to)).fetchall()
+        return ret
 
     def setDocumentCount(self, historical_toots):
         self.document_count = Counter(historical_toots)
