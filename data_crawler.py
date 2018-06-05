@@ -6,16 +6,34 @@ import dateutil.parser
 import multiprocessing as mp
 import requests
 import sqlite3
+from multiprocessing.managers import SyncManager
+from queue import PriorityQueue
+
 
 features = ["id", "created_at", "reblogs_count", "language", "content"]
 TIME_ZONE = tzlocal.get_localzone()
 
 
+class MyManager(SyncManager):
+    pass
+
+
+MyManager.register("PriorityQueue", PriorityQueue)
+
+
+def Manager():
+    m = MyManager()
+    m.start()
+    return m
+
 def filter_toot(toot):
     output_toot = dict()
 
     for feature in features:
-        output_toot[feature] = toot[feature]
+        if feature in toot:
+            output_toot[feature] = toot[feature]
+        else:
+            return None
     return output_toot
 
 
@@ -49,8 +67,8 @@ class InstanceCrawler(object):
             else:
                 self.crawl_forwards()
         else:
-            if self.crawled_up_to_date is not None and self.crawled_up_to_date + self.crawl_interval > self.crawled_up_to_date:
-                time_delta = (self.crawled_up_to_date + self.crawl_interval) - self.crawled_up_to_date
+            if self.crawled_up_to_date is not None and self.crawled_up_to_date + self.crawl_interval > datetime.datetime.now(tz=TIME_ZONE):
+                time_delta = (self.crawled_up_to_date + self.crawl_interval) - datetime.datetime.now(tz=TIME_ZONE)
                 print("WAIT\t Waiting for %d seconds until next crawl."%(time_delta.total_seconds()))
                 time.sleep(time_delta.total_seconds())
             self.crawl_forwards()
@@ -59,16 +77,18 @@ class InstanceCrawler(object):
         print("FORWARD_CRAWL_START\t Starting forward crawl on %s."%self.instance_address)
         try:
             if self.crawled_up_to_id is not None:
-                r = requests.get("http://"+self.instance_address+"/api/v1/timelines/public", {'local': True, 'since_id': self.crawled_up_to_id, 'limit': 40})
+                r = requests.get("http://"+self.instance_address+"/api/v1/timelines/public", {'local': True, 'since_id': self.crawled_up_to_id, 'limit': 40}, timeout=(3, 27))
             else:
-                r = requests.get("http://"+self.instance_address+"/api/v1/timelines/public", {'local': True, 'limit': 40})
-        except requests.exceptions.ConnectionError:
+                r = requests.get("http://"+self.instance_address+"/api/v1/timelines/public", {'local': True, 'limit': 40}, timeout=(3, 27))
+        except Exception:
             print("CONNECT_ERROR Instance %s is down."%self.instance_address)
+            self.instance_active = False
             return
         try:
             content = json.loads(r.text)
         except json.JSONDecodeError as e:
             print("JSON_ERROR\t Instance: %s "%self.instance_address)
+            self.instance_active = False
             return
 
         if not r.status_code == requests.codes.ok:
@@ -76,11 +96,12 @@ class InstanceCrawler(object):
             self.instance_active = False
             return
 
-        content = list(map(filter_toot, content))
+        content = list(filter(lambda x: x is not None, map(filter_toot, content)))
 
         # TODO: Filter out all toots that are too old and don't set the flag correctly if we have all toots from start time
         self.crawled_up_to_date = datetime.datetime.now(tz=TIME_ZONE)
         if len(content) == 0:
+            self.crawled_all_preceding = True
             print("ZEROLENGTH\t Crawl from instance %s returned zero-length array."%self.instance_address)
             return
 
@@ -115,11 +136,12 @@ class InstanceCrawler(object):
         print("BACKWARD_CRAWL_START\t Starting backward crawl on %s."%self.instance_address)
         try:
             if self.crawled_from_id is not None:
-                r = requests.get("http://"+self.instance_address+"/api/v1/timelines/public", {'local': True, 'max_id': self.crawled_from_id, 'limit': 40})
+                r = requests.get("http://"+self.instance_address+"/api/v1/timelines/public", {'local': True, 'max_id': self.crawled_from_id, 'limit': 40}, timeout=(3, 27))
             else:
-                r = requests.get("http://"+self.instance_address+"/api/v1/timelines/public", {'local': True, 'limit': 40})
-        except requests.exceptions.ConnectionError:
+                r = requests.get("http://"+self.instance_address+"/api/v1/timelines/public", {'local': True, 'limit': 40}, timeout=(3, 27))
+        except Exception:
             print("CONNECT_ERROR Instance %s is down."%self.instance_address)
+            self.instance_active = False
             return
 
         if not r.status_code == requests.codes.ok:
@@ -131,10 +153,11 @@ class InstanceCrawler(object):
             content = json.loads(r.text)
         except json.JSONDecodeError as e:
             print("JSON_ERROR\t Instance: %s "%self.instance_address)
+            self.instance_active = False
             return
 
         # TODO: Language flag not found in some instances, plz fix...
-        content = list(map(filter_toot, content))
+        content = list(filter(lambda x: x is not None,map(filter_toot, content)))
         self.crawled_up_to_date = datetime.datetime.now(tz=TIME_ZONE)
 
         if len(content) == 0:
@@ -168,10 +191,45 @@ class InstanceCrawler(object):
         db.close()
         print("BACKWARD_CRAWL_FINISH\t Finished backward crawl on %s, %d new toots acquired." % (self.instance_address, len(content)))
 
+    def __cmp__(self, other):
+        if not self.crawled_all_preceding:
+            return -1
+        elif not other.crawled_all_preceding:
+            return 1
+
+        if self.crawled_up_to_date > other.crawled_up_to_date:
+            return 1
+        elif self.crawled_up_to_date == other.crawled_up_to_date:
+            return 0
+        else:
+            return -1
+
+    def __eq__(self, other):
+        return self.__cmp__(other) == 0
+
+    def __ne__(self, other):
+        return self.__cmp__(other) != 0
+
+    def __lt__(self, other):
+        return self.__cmp__(other) < 0
+
+    def __gt__(self, other):
+        return self.__cmp__(other) > 0
+
+    def __le__(self, other):
+        return self.__cmp__(other) <= 0
+
+    def __ge__(self, other):
+        return self.__cmp__(other) >= 0
+
+
+
+
 
 class Crawler(object):
     def __init__(self, max_parallel_crawls, instance_list, start_time, crawl_interval=datetime.timedelta(hours=2)):
-        self.queue = mp.Queue()
+        self.manager = Manager()
+        self.queue = self.manager.PriorityQueue()
         self.max_parallel_crawls = max_parallel_crawls
         self.instance_list = instance_list
         self.start_time = start_time
@@ -197,5 +255,6 @@ if __name__ == "__main__":
     with open("instances.json", "r") as f:
         instances = json.load(f)
     instance_list = map(lambda i: i["name"], instances)
-    crawler = Crawler(12, instance_list, datetime.datetime.now(tz=TIME_ZONE) - datetime.timedelta(weeks=2))
+    #instance_list = ["mastodon.social", "mastodon.utwente.nl"]
+    crawler = Crawler(50, instance_list, datetime.datetime.now(tz=TIME_ZONE) - datetime.timedelta(hours=2))
     crawler.run()

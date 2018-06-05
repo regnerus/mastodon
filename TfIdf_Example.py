@@ -19,3 +19,10 @@ tfidf.setDocumentCountFromDb(conn, "2018-03-05 12:57:13.048000+00:00", "2018-06-
 tfidf.setTermCountFromDb(conn, "2018-06-04 18:00:00.000000+00:00", "2018-06-05 18:00:00.000000+00:00") #Recent Toots
 
 print(tfidf.returnScores())
+print(tfidf.term_count)
+
+tfidf = TfIdf()
+tfidf.setDocumentCountFromDb(conn, "2018-03-05 12:57:13.048000+00:00", "2018-06-05 14:30:00.000000+00:00") #Historical Toots
+tfidf.setTermCountFromDb(conn, "2018-06-04 14:30:00.000000+00:00", "2018-06-05 18:00:00.000000+00:00") #Recent Toots
+
+print(tfidf.returnScores())
