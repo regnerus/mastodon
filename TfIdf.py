@@ -11,13 +11,25 @@ class TfIdf:
     def __tfidfFunc(self, term):
         return (term, self.term_count[term] * 1.0 / (1 + self.document_count[term])) # Add one smoothing to avoid division by zero.
 
-    def set_document_count(self, historical_toots):
+    def __getDbTerms(self, conn, datetime_from, datetime_to):
+        conn.row_factory = lambda cursor, row: row[0]
+        c = conn.cursor()
+
+        return c.execute(f"SELECT term FROM terms WHERE created_at BETWEEN '{datetime_from}' AND '{datetime_to}'").fetchall()
+
+    def setDocumentCount(self, historical_toots):
         self.document_count = Counter(historical_toots)
 
-    def set_term_count(self, recent_toots):
+    def setTermCount(self, recent_toots):
         self.term_count = Counter(recent_toots)
 
-    def return_scores(self):
+    def setDocumentCountFromDb(self, conn, datetime_from, datetime_to):
+        self.document_count = Counter(self.__getDbTerms(conn, datetime_from, datetime_to))
+
+    def setTermCountFromDb(self, conn, datetime_from, datetime_to):
+        self.term_count = Counter(self.__getDbTerms(conn, datetime_from, datetime_to))
+
+    def returnScores(self):
         self.tfidf_values = list(map(self.__tfidfFunc, self.term_count))
         self.tfidf_values.sort(key=operator.itemgetter(1), reverse=True)     
 
