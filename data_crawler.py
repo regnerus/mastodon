@@ -93,10 +93,9 @@ class InstanceCrawler(object):
             date = dateutil.parser.parse(content[i]["created_at"])
 
         self.crawled_all_preceding = len(content) != i
+        print("Set crawled all preceding to ", self.crawled_all_preceding)
         if i != 0:
             content = content[:i]
-            if self.crawled_from_id is None:
-                self.crawled_from_id = content[i-1]["id"]
         else:
             content = []
         if len(content) == 0:
@@ -198,5 +197,5 @@ if __name__ == "__main__":
     with open("instances.json", "r") as f:
         instances = json.load(f)
     instance_list = map(lambda i: i["name"], instances)
-    crawler = Crawler(12, instance_list, datetime.datetime.now(tz=TIME_ZONE) - datetime.timedelta(hours=2))
+    crawler = Crawler(12, instance_list, datetime.datetime.now(tz=TIME_ZONE) - datetime.timedelta(weeks=2))
     crawler.run()

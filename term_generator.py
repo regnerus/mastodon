@@ -3,22 +3,34 @@
 """
 import sqlite3
 import datetime
+import time
 
 from TootProcessor import TootProcessor
 
 toot_processor = TootProcessor()
 from_date = None
 
+
+
 with sqlite3.connect("data/toots.db") as conn:
+    conn.execute("DROP TABLE IF EXISTS terms")
+    conn.execute(
+        """
+    CREATE TABLE terms (
+      created_at DATETIME,
+      term TEXT
+
+    )"""
+    )
     curs = conn.cursor()
     while True:
+        print("TERM_GENERATOR Generating terms")
         if from_date is None:
-            curs = curs.execute("SELECT created_at, added_at, content FROM raw_toots")
+            curs = curs.execute("SELECT created_at, added_at, content FROM raw_toots WHERE language = 'en'")
             toots = curs.fetchall()
         else:
-            curs = conn.execute("SELECT created_at, added_at, content FROM raw_toots WHERE added_at > ? ORDER BY added_at", (from_date,))
+            curs = conn.execute("SELECT created_at, added_at, content FROM raw_toots WHERE added_at > ? AND language = 'en' ORDER BY added_at", (from_date,))
             toots = curs.fetchall()
-        print(toots)
         output = []
         for created, added, contents in toots:
             terms = toot_processor.processToot(contents)
@@ -27,11 +39,8 @@ with sqlite3.connect("data/toots.db") as conn:
         # If there are any new terms, remember the added_at date of the last one as out new starting point
         if len(output) > 0:
             from_date = added
-
+        print("TERM_GENERATOR_COMPLETE Generated %d terms"%(len(output)))
         curs = curs.executemany("INSERT INTO terms VALUES (?,?)", output)
         conn.commit()
 
-
-
-        break
-        toot_processor.processToot()
+        time.sleep(60)

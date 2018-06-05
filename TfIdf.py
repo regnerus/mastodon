@@ -1,5 +1,6 @@
 from collections import Counter
 import operator
+import numpy as np
 
 '''DfIdf Class.'''
 
@@ -9,12 +10,16 @@ class TfIdf:
         self.term_count = Counter(recent_toots)
 
     def __tfidfFunc(self, term):
-        return (term, self.term_count[term] * 1.0 / (1 + self.document_count[term])) # Add one smoothing to avoid division by zero.
+        tf = self.term_count[term]
+        idf =1.0 / (1 + self.document_count[term])
+
+        return term, tf * idf  # Add one smoothing to avoid division by zero.
 
     def __getDbTerms(self, conn, datetime_from, datetime_to):
         conn.row_factory = lambda cursor, row: row[0]
         c = conn.cursor()
         ret = c.execute("SELECT term FROM terms WHERE created_at BETWEEN ? AND ?", (datetime_from, datetime_to)).fetchall()
+        print(len(ret))
         return ret
 
     def setDocumentCount(self, historical_toots):
@@ -31,6 +36,6 @@ class TfIdf:
 
     def returnScores(self):
         self.tfidf_values = list(map(self.__tfidfFunc, self.term_count))
-        self.tfidf_values.sort(key=operator.itemgetter(1), reverse=True)     
+        self.tfidf_values.sort(key=operator.itemgetter(1), reverse=True)
 
         return self.tfidf_values
