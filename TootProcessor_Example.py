@@ -11,4 +11,4 @@ toot = '<p>Some early thoughts on Fort Triumph, the tactical RPG with interactiv
 
 processor = TootProcessor(lemmatize_words = True, remove_duplicates = False)
 
-processor.processToot(toot)
+print(processor.processToot(toot))
