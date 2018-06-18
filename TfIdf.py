@@ -12,11 +12,13 @@ class TfIdf:
 
     def __tfidfFunc(self, term):
         tf = self.term_count[term]
+
+        # idf = math.log(1 + ((self.len_document_count - self.document_count[term]) / self.document_count[term]))
         idf = 1.0 / (self.scaling_factor + self.document_count[term])
 
         return term, tf * idf  # Add one smoothing to avoid division by zero.
 
-    def __getDbTerms(self, conn, datetime_from, datetime_to):
+    def getDbTerms(self, conn, datetime_from, datetime_to):
         conn.row_factory = lambda cursor, row: row[0]
         c = conn.cursor()
         ret = c.execute("SELECT term FROM terms WHERE created_at BETWEEN ? AND ?", (datetime_from, datetime_to)).fetchall()
@@ -30,12 +32,13 @@ class TfIdf:
         self.term_count = Counter(recent_toots)
 
     def setDocumentCountFromDb(self, conn, datetime_from, datetime_to):
-        self.document_count = Counter(self.__getDbTerms(conn, datetime_from, datetime_to))
+        self.document_count = Counter(self.getDbTerms(conn, datetime_from, datetime_to))
 
     def setTermCountFromDb(self, conn, datetime_from, datetime_to):
-        self.term_count = Counter(self.__getDbTerms(conn, datetime_from, datetime_to))
+        self.term_count = Counter(self.getDbTerms(conn, datetime_from, datetime_to))
 
     def returnScores(self):
+        self.len_document_count = sum(self.document_count.itervalues()) * 1.0
         self.scaling_factor = sum(self.document_count.itervalues()) * 1.0 / sum(self.term_count.itervalues()) * 1.0
         self.scaling_factor = self.scaling_factor * 4
         print("Scaling Factor", self.scaling_factor)
