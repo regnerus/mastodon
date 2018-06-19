@@ -3,14 +3,14 @@ import operator
 import numpy as np
 import math
 
-'''DfIdf Class.'''
+'''Relative Term Frequency Class.'''
 
-class TfIdf:
+class RelativeTermFrequency:
     def __init__(self, historical_toots = [], recent_toots = []):
         self.document_count = Counter(historical_toots)
         self.term_count = Counter(recent_toots)
 
-    def __tfidfFunc(self, term):
+    def __rtfFunc(self, term):
         tf = self.term_count[term]
 
         # idf = math.log(1 + ((self.len_document_count - self.document_count[term]) / self.document_count[term]))
@@ -43,14 +43,23 @@ class TfIdf:
         self.scaling_factor = self.scaling_factor * 4
         print("Scaling Factor", self.scaling_factor)
 
-        self.tfidf_values = list(map(self.__tfidfFunc, self.term_count))
-        self.tfidf_values.sort(key=operator.itemgetter(1), reverse=True)
+        self.rtf_values = list(map(self.__rtfFunc, self.term_count))
+        self.rtf_values.sort(key=operator.itemgetter(1), reverse=True)
 
-        return self.tfidf_values
+        return self.rtf_values
 
     def printnScores(self, n = 10):
         tfidf_scores = self.returnScores()[0:n]
         for r in tfidf_scores:
             term = r[0]
             print(term, self.term_count[term], self.document_count[term])
+
+    def tablePrintScores(self, n = 10):
+        tfidf_scores = self.returnScores()[0:n]
+        print("Term\t# In past day\t# History + Past day")
+
+
+        for r in tfidf_scores:
+            term = r[0]
+            print("%s\t%d\t%d"%(term, self.term_count[term], self.document_count[term]))
 
